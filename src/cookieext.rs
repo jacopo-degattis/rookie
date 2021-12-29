@@ -2,8 +2,23 @@ use std::io::{Error, ErrorKind};
 use std::collections::HashMap;
 use openssl::pkcs5::pbkdf2_hmac;
 use openssl::hash::MessageDigest;
+use rusqlite::{Connection, Result};
+extern crate urlparse;
+use rusqlite::NO_PARAMS;
+use urlparse::urlparse;
 extern crate dirs;
 extern crate keyring;
+
+#[derive(Debug)]
+struct Cooky {
+    sl_no: String,
+    column_name: String,
+    data_type: String,
+    is_null: String,
+    default_val: String,
+    pk: String,
+}
+
 
 fn _get_safe_storage_keyring(browser: &str) -> Result<String, keyring::Error> {
 
@@ -68,7 +83,7 @@ fn get_os_config(browser: &str) -> Result<HashMap<&str, String>, Error> {
     Ok(config)
 }
 
-pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String>, Error> {
+pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String>, std::io::Error> {
     let mut config: HashMap<&str, String>;
     let e = HashMap::new();
 
@@ -115,6 +130,30 @@ pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String
     println!("psw, {:x?}", salted_password);
 
     // TODO: use aes_gcm do decrypt AES packages
+    let parsed_url = urlparse(url);
+    
+    if parsed_url.scheme.chars().count() == 0 {
+        return Err(
+            Error::new(
+                // TODO: change error kind
+                ErrorKind::InvalidInput,
+                "You must specify a scheme with your URL"
+            )
+        );
+    }
+
+    let domain = parsed_url.netloc;
+
+    // TODO: imrove error catching for DB connection
+    // TODO: move to dedicated function, it also fixes the exception error
+    // let conn = Connection::open(cookie_file).unwrap();
+
+    // let mut query = conn.prepare("PRAGMA table_info(cookies)")?;
+    // let cookies = query.query_map(NO_PARAMS, |row| {
+    //     Ok(Cooky {
+    //         sl_no: row.get(0)?,
+    //     })
+    // });
 
     Ok(e)
 } 
