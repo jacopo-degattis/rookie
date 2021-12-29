@@ -2,4 +2,4 @@
 
 ## Description
 
-TODO
+A rust utility to extract encrypted cookies from Chrome. More browsers support will come.
