@@ -137,7 +137,7 @@ fn _generate_host_keys(hostname: &String) -> Result<Vec<String>, std::io::Error>
 fn _fetch_cookies_from_db(conn: &Connection, cookie_file: &String, domain: &String, secure_column_name: &String) -> Result<Vec<Cooky>, rusqlite::Error> {
     let cookies: Vec<Cooky> = Vec::new();
     let keys = _generate_host_keys(&domain).unwrap();
-    let mut cookies_dump: HashMap<&str, String> = HashMap::new();
+    let mut cookies_dump: HashMap<String, String> = HashMap::new();
 
     for host_key in keys {
   
@@ -165,13 +165,14 @@ fn _fetch_cookies_from_db(conn: &Connection, cookie_file: &String, domain: &Stri
                             let version: &[u8] = &v.enc_val[0..3];
                             // let version = <&[u8; 3]>::try_from(slice).unwrap();
                             let is_valid = !vec!["v10".as_bytes(), "v11".as_bytes()].contains(&version);
-                            // let current_value = v.val.unwrap();
-                            // let current_cookie_key = v.cookie_key;
-                            // if &current_value.len() > &0 || is_valid {
-                            //     cookies_dump.extend([
-                            //         (current_cookie_key.as_str(), current_value),
-                            //     ]);
-                            // }
+                            let current_value = v.val.unwrap();
+                            if &current_value.len() > &0 || is_valid {
+                                cookies_dump.extend([
+                                    (v.cookie_key, current_value),
+                                ]);
+                            } else {
+                                
+                            }
                         },
                         Err(e) => println!("{:?}", e)
                     }
