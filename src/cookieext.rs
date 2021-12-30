@@ -7,6 +7,8 @@ extern crate urlparse;
 use urlparse::urlparse;
 extern crate dirs;
 extern crate keyring;
+use std::str;
+use std::convert::TryFrom;
 
 #[derive(Debug)]
 struct TableInfo {
@@ -26,7 +28,7 @@ struct Cooky {
     is_secure: bool,
     expires_utc: i64,
     cookie_key: String,
-    val: String,
+    val: Option<String>,
     enc_val:  Vec<u8>
 }
 
@@ -134,20 +136,11 @@ fn _generate_host_keys(hostname: &String) -> Result<Vec<String>, std::io::Error>
 
 fn _fetch_cookies_from_db(conn: &Connection, cookie_file: &String, domain: &String, secure_column_name: &String) -> Result<Vec<Cooky>, rusqlite::Error> {
     let cookies: Vec<Cooky> = Vec::new();
-    
     let keys = _generate_host_keys(&domain).unwrap();
-    
-
-
-    // let query = format!("select host_key, path, {}, expires_utc, name, value, encrypted_value from cookies where host_key like (?1)", secure_column_name).as_str();
+    let mut cookies_dump: HashMap<&str, String> = HashMap::new();
 
     for host_key in keys {
-        // let query = match conn.prepare(
-        //     format!("select host_key, path, {}, expires_utc, name, value, encrypted_value from cookies where host_key like '{}'", secure_column_name, host_key).as_str(),
-        // ) {
-        //     Ok(val) => println!("val, {:?}", val),
-        //     Err(err) => println!("err, {}", err)
-        // };
+  
         let mut query = conn.prepare(
             format!("select host_key, path, {}, expires_utc, name, value, encrypted_value from cookies where host_key like '{}'", secure_column_name, host_key).as_str(),
         )?;
@@ -163,12 +156,23 @@ fn _fetch_cookies_from_db(conn: &Connection, cookie_file: &String, domain: &Stri
                 enc_val: row.get(6)?
             })
         }) {
-
-            // TODO: improve error handling and match nesting
+            // TODO: improve error handling and match and nesting
             Ok(val) => {
                 for c in val {
                     match c {
-                        Ok(v) => println!("{:?}", v),
+                        Ok(v) => {
+                            println!("{:?}", str::from_utf8(&v.enc_val[0..3]));
+                            let version: &[u8] = &v.enc_val[0..3];
+                            // let version = <&[u8; 3]>::try_from(slice).unwrap();
+                            let is_valid = !vec!["v10".as_bytes(), "v11".as_bytes()].contains(&version);
+                            // let current_value = v.val.unwrap();
+                            // let current_cookie_key = v.cookie_key;
+                            // if &current_value.len() > &0 || is_valid {
+                            //     cookies_dump.extend([
+                            //         (current_cookie_key.as_str(), current_value),
+                            //     ]);
+                            // }
+                        },
                         Err(e) => println!("{:?}", e)
                     }
                 }
