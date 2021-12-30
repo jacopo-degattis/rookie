@@ -1,5 +1,4 @@
 mod cookieext;
-use std::io::Error;
 
 fn main() -> Result<(), std::io::Error> {
     // let value = cookieext::get_os_config("chrome");

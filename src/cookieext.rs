@@ -4,7 +4,6 @@ use openssl::pkcs5::pbkdf2_hmac;
 use openssl::hash::MessageDigest;
 use rusqlite::{Connection, Result};
 extern crate urlparse;
-use rusqlite::NO_PARAMS;
 use urlparse::urlparse;
 extern crate dirs;
 extern crate keyring;
@@ -19,6 +18,19 @@ struct TableInfo {
     pk: i32,
 }
 
+
+#[derive(Debug)]
+struct Cooky {
+    hk: String,
+    path: String,
+    is_secure: bool,
+    expires_utc: i64,
+    cookie_key: String,
+    val: String,
+    enc_val:  Vec<u8>
+}
+
+// https://docs.rs/rusqlite/0.13.0/rusqlite/blob/index.html
 
 fn _get_safe_storage_keyring(browser: &str) -> Result<String, keyring::Error> {
 
@@ -83,12 +95,11 @@ fn get_os_config(browser: &str) -> Result<HashMap<&str, String>, Error> {
     Ok(config)
 }
 
-fn _fetch_cookie_table_info_from_db(cookie_file: String) -> Result<Vec<TableInfo>, rusqlite::Error> {
+fn _fetch_cookie_table_info_from_db(conn: &Connection, cookie_file: &String) -> Result<Vec<TableInfo>, rusqlite::Error> {
     let mut infos: Vec<TableInfo> = Vec::new();
-    let conn = Connection::open(cookie_file).unwrap();
 
     let mut query = conn.prepare("PRAGMA table_info(cookies)")?;
-    let cookies = query.query_map(NO_PARAMS, |row| {
+    let cookies = query.query_map([], |row| {
         Ok(TableInfo {
             sl_no: row.get(0)?,
             column_name: row.get(1)?,
@@ -99,13 +110,79 @@ fn _fetch_cookie_table_info_from_db(cookie_file: String) -> Result<Vec<TableInfo
         })
     })?;
 
-    
     for c in cookies {
-        // println!("val, {}", cookies.column_name);
         infos.push(c.unwrap());
     }
 
     Ok(infos)
+}
+
+
+fn _generate_host_keys(hostname: &String) -> Result<Vec<String>, std::io::Error> {
+    let mut labels = hostname.split(".");
+    let vec: Vec<&str> = labels.collect();
+    let mut entries: Vec<String> = Vec::new();
+
+    for i in 2..vec.len() + 1 {
+        let domain = vec[vec.len() - i .. 3].join(".");
+        let formatted = format!(".{}", domain.clone());
+        entries.extend([domain, formatted]);
+    }
+    
+    Ok(entries)
+}
+
+fn _fetch_cookies_from_db(conn: &Connection, cookie_file: &String, domain: &String, secure_column_name: &String) -> Result<Vec<Cooky>, rusqlite::Error> {
+    let cookies: Vec<Cooky> = Vec::new();
+    
+    let keys = _generate_host_keys(&domain).unwrap();
+    
+
+
+    // let query = format!("select host_key, path, {}, expires_utc, name, value, encrypted_value from cookies where host_key like (?1)", secure_column_name).as_str();
+
+    for host_key in keys {
+        // let query = match conn.prepare(
+        //     format!("select host_key, path, {}, expires_utc, name, value, encrypted_value from cookies where host_key like '{}'", secure_column_name, host_key).as_str(),
+        // ) {
+        //     Ok(val) => println!("val, {:?}", val),
+        //     Err(err) => println!("err, {}", err)
+        // };
+        let mut query = conn.prepare(
+            format!("select host_key, path, {}, expires_utc, name, value, encrypted_value from cookies where host_key like '{}'", secure_column_name, host_key).as_str(),
+        )?;
+
+        let ckies = match query.query_map([], |row| {
+            Ok(Cooky {
+                hk: row.get(0)?,
+                path: row.get(1)?,
+                is_secure: row.get(2)?,
+                expires_utc: row.get(3)?,
+                cookie_key: row.get(4)?,
+                val: row.get(5)?,
+                enc_val: row.get(6)?
+            })
+        }) {
+
+            // TODO: improve error handling and match nesting
+            Ok(val) => {
+                for c in val {
+                    match c {
+                        Ok(v) => println!("{:?}", v),
+                        Err(e) => println!("{:?}", e)
+                    }
+                }
+            },
+            Err(err) => println!("err, {}", err)
+        };
+
+        // for c in cookies {
+        //     let a = c.unwrap();
+        //     println!("{:?}", a);
+        // }
+    }
+
+    Ok(cookies)
 }
 
 pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String>, std::io::Error> {
@@ -169,7 +246,10 @@ pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String
 
     let domain = parsed_url.netloc;
 
-    let table_infos = _fetch_cookie_table_info_from_db(cookie_file).unwrap();
+    let conn = Connection::open(cookie_file.as_str()).unwrap();
+    // TODO: imrove error catching for DB connection
+
+    let table_infos = _fetch_cookie_table_info_from_db(&conn, &cookie_file).unwrap();
 
     let mut secure_column_name = "";
     for info in table_infos {
@@ -178,9 +258,13 @@ pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String
         }
     }
 
-    println!("data, {}", secure_column_name);
-    // TODO: imrove error catching for DB connection
-    // TODO: move to dedicated function, it also fixes the exception error
+    println!("data, {}", secure_column_name);    
+
+    // NOTE: move value, not implement trait copy fix:
+    // https://stackoverflow.com/questions/28800121/what-do-i-have-to-do-to-solve-a-use-of-moved-value-error
+
+    let cookies = _fetch_cookies_from_db(&conn, &cookie_file, &domain, &secure_column_name.to_string()).unwrap();
 
     Ok(e)
+
 } 
