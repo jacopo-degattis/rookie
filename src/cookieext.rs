@@ -10,13 +10,13 @@ extern crate dirs;
 extern crate keyring;
 
 #[derive(Debug)]
-struct Cooky {
-    sl_no: String,
+struct TableInfo {
+    sl_no: i32,
     column_name: String,
     data_type: String,
-    is_null: String,
-    default_val: String,
-    pk: String,
+    is_null: i32,
+    default_val: Option<String>,
+    pk: i32,
 }
 
 
@@ -83,6 +83,31 @@ fn get_os_config(browser: &str) -> Result<HashMap<&str, String>, Error> {
     Ok(config)
 }
 
+fn _fetch_cookie_table_info_from_db(cookie_file: String) -> Result<Vec<TableInfo>, rusqlite::Error> {
+    let mut infos: Vec<TableInfo> = Vec::new();
+    let conn = Connection::open(cookie_file).unwrap();
+
+    let mut query = conn.prepare("PRAGMA table_info(cookies)")?;
+    let cookies = query.query_map(NO_PARAMS, |row| {
+        Ok(TableInfo {
+            sl_no: row.get(0)?,
+            column_name: row.get(1)?,
+            data_type: row.get(2)?,
+            is_null: row.get(3)?,
+            default_val: row.get(4)?,
+            pk: row.get(5)?,
+        })
+    })?;
+
+    
+    for c in cookies {
+        // println!("val, {}", cookies.column_name);
+        infos.push(c.unwrap());
+    }
+
+    Ok(infos)
+}
+
 pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String>, std::io::Error> {
     let mut config: HashMap<&str, String>;
     let e = HashMap::new();
@@ -144,16 +169,18 @@ pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String
 
     let domain = parsed_url.netloc;
 
+    let table_infos = _fetch_cookie_table_info_from_db(cookie_file).unwrap();
+
+    let mut secure_column_name = "";
+    for info in table_infos {
+        if info.column_name == "is_secure" {
+            secure_column_name = "is_secure";
+        }
+    }
+
+    println!("data, {}", secure_column_name);
     // TODO: imrove error catching for DB connection
     // TODO: move to dedicated function, it also fixes the exception error
-    // let conn = Connection::open(cookie_file).unwrap();
-
-    // let mut query = conn.prepare("PRAGMA table_info(cookies)")?;
-    // let cookies = query.query_map(NO_PARAMS, |row| {
-    //     Ok(Cooky {
-    //         sl_no: row.get(0)?,
-    //     })
-    // });
 
     Ok(e)
 } 
