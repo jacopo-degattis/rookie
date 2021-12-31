@@ -1,17 +1,18 @@
-use std::io::{Error, ErrorKind};
-use std::collections::HashMap;
-use openssl::pkcs5::pbkdf2_hmac;
-use openssl::hash::MessageDigest;
-use rusqlite::{Connection, Result};
-extern crate urlparse;
-use urlparse::urlparse;
+use std::str;
+use aes::Aes128;
 extern crate dirs;
 extern crate keyring;
-use std::str;
+extern crate urlparse;
+use urlparse::urlparse;
 use std::convert::TryFrom;
-use aes::Aes128;
-use block_modes::block_padding::Pkcs7;
+use std::collections::HashMap;
+use std::io::{Error, ErrorKind};
+use openssl::pkcs5::pbkdf2_hmac;
+use openssl::hash::MessageDigest;
 use block_modes::{BlockMode, Cbc};
+use rusqlite::{Connection, Result};
+use block_modes::block_padding::Pkcs7;
+
 
 #[derive(Debug)]
 #[allow(dead_code)]
