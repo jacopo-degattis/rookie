@@ -7,7 +7,8 @@ fn main() -> Result<(), std::io::Error> {
     //     Ok(val) => println!("{:?}", val),
     //     Err(err) => return Err(err)
     // }
-    let _e = cookieext::chrome_cookies("https://www.instagram.com/", "Chrome");
+    let e = cookieext::chrome_cookies("https://www.instagram.com/", "Chrome").unwrap();
+    println!("{:?}", e);
 
     Ok(())
 }

@@ -9,6 +9,9 @@ extern crate dirs;
 extern crate keyring;
 use std::str;
 use std::convert::TryFrom;
+use aes::Aes128;
+use block_modes::block_padding::Pkcs7;
+use block_modes::{BlockMode, Cbc};
 
 #[derive(Debug)]
 struct TableInfo {
@@ -31,6 +34,8 @@ struct Cooky {
     val: Option<String>,
     enc_val:  Vec<u8>
 }
+
+type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 
 // https://docs.rs/rusqlite/0.13.0/rusqlite/blob/index.html
 
@@ -134,7 +139,25 @@ fn _generate_host_keys(hostname: &String) -> Result<Vec<String>, std::io::Error>
     Ok(entries)
 }
 
-fn _fetch_cookies_from_db(conn: &Connection, cookie_file: &String, domain: &String, secure_column_name: &String) -> Result<Vec<Cooky>, rusqlite::Error> {
+fn _chrome_decrypt(enc_val: Vec<u8>, input_key: &[u8; 16], init_vector: &String) -> Result<String, std::io::Error> {
+    let encrypted_value: Vec<u8> = enc_val[3..enc_val.len()].to_vec();
+    let mut test = encrypted_value;
+
+    let cipher = Aes128Cbc::new_from_slices(input_key, init_vector.as_bytes()).unwrap();
+    let e = cipher.decrypt(&mut test).unwrap().to_vec();
+    let utf_value = String::from_utf8(e).unwrap();
+
+    Ok(utf_value)
+}
+
+fn _fetch_cookies_from_db(
+    conn: &Connection,
+    cookie_file: &String,
+    domain: &String,
+    secure_column_name: &String,
+    salted_password: &[u8; 16],
+    init_vector: &String
+) -> Result<HashMap<String, String>, rusqlite::Error> {
     let cookies: Vec<Cooky> = Vec::new();
     let keys = _generate_host_keys(&domain).unwrap();
     let mut cookies_dump: HashMap<String, String> = HashMap::new();
@@ -161,7 +184,7 @@ fn _fetch_cookies_from_db(conn: &Connection, cookie_file: &String, domain: &Stri
                 for c in val {
                     match c {
                         Ok(v) => {
-                            println!("{:?}", str::from_utf8(&v.enc_val[0..3]));
+                            // println!("{:?}", str::from_utf8(&v.enc_val[0..3]));
                             let version: &[u8] = &v.enc_val[0..3];
                             // let version = <&[u8; 3]>::try_from(slice).unwrap();
                             let is_valid = !vec!["v10".as_bytes(), "v11".as_bytes()].contains(&version);
@@ -171,7 +194,10 @@ fn _fetch_cookies_from_db(conn: &Connection, cookie_file: &String, domain: &Stri
                                     (v.cookie_key, current_value),
                                 ]);
                             } else {
-                                
+                                let current_value = _chrome_decrypt(v.enc_val, salted_password, init_vector).unwrap();
+                                cookies_dump.extend([
+                                    (v.cookie_key, current_value)
+                                ]);
                             }
                         },
                         Err(e) => println!("{:?}", e)
@@ -180,19 +206,13 @@ fn _fetch_cookies_from_db(conn: &Connection, cookie_file: &String, domain: &Stri
             },
             Err(err) => println!("err, {}", err)
         };
-
-        // for c in cookies {
-        //     let a = c.unwrap();
-        //     println!("{:?}", a);
-        // }
     }
 
-    Ok(cookies)
+    Ok(cookies_dump)
 }
 
 pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String>, std::io::Error> {
     let mut config: HashMap<&str, String>;
-    let e = HashMap::new();
 
     // TODO: add linux and windows support too
     if cfg!(target_os="macos") {
@@ -209,7 +229,7 @@ pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String
     config.extend([
         ("init_vector", (0..16).map(|_| " ").collect::<String>()),
         ("length", String::from("16")),
-        ("salt", String::from("sweetsalt"))
+        ("salt", String::from("saltysalt"))
     ]);
 
     let home_dir_str = dirs::home_dir().unwrap();
@@ -221,11 +241,11 @@ pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String
 
     let mut salted_password: [u8; 32] = [0; 32];
     
-    println!("psw, {}", config["psw"]);
+    // println!("psw, {}", config["psw"]);
 
     match pbkdf2_hmac(
         config["psw"].as_bytes(),
-        &config["salt"].as_bytes(),
+        config["salt"].as_bytes(),
         config["iterations"].parse::<usize>().unwrap(),
         MessageDigest::sha1(),
         &mut salted_password
@@ -234,7 +254,10 @@ pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String
         Err(err) => format!("{}", err)
     };
 
-    println!("psw, {:x?}", salted_password);
+    let byte_slice = &salted_password[0..16];
+    let truncated_salted_password = <&[u8; 16]>::try_from(byte_slice).unwrap();;
+
+    // println!("psw, {:?}", truncated_salted_password);
 
     // TODO: use aes_gcm do decrypt AES packages
     let parsed_url = urlparse(url);
@@ -263,13 +286,21 @@ pub fn chrome_cookies(url: &str, browser: &str) -> Result<HashMap<String, String
         }
     }
 
-    println!("data, {}", secure_column_name);    
+    // println!("data, {}", secure_column_name);    
 
     // NOTE: move value, not implement trait copy fix:
     // https://stackoverflow.com/questions/28800121/what-do-i-have-to-do-to-solve-a-use-of-moved-value-error
 
-    let cookies = _fetch_cookies_from_db(&conn, &cookie_file, &domain, &secure_column_name.to_string()).unwrap();
+    let init_vector = &config["init_vector"];
+    let cookies = _fetch_cookies_from_db(
+        &conn,
+        &cookie_file,
+        &domain,
+        &secure_column_name.to_string(),
+        &truncated_salted_password,
+        &init_vector
+    ).unwrap();
 
-    Ok(e)
+    Ok(cookies)
 
 } 
