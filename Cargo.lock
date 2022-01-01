@@ -180,19 +180,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cookieext"
-version = "0.1.0"
-dependencies = [
- "aes 0.7.5",
- "block-modes 0.8.1",
- "dirs",
- "keyring",
- "openssl",
- "rusqlite",
- "urlparse",
-]
-
-[[package]]
 name = "core-foundation"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -820,6 +807,19 @@ checksum = "528532f3d801c87aec9def2add9ca802fe569e44a544afe633765267840abe64"
 dependencies = [
  "getrandom",
  "redox_syscall",
+]
+
+[[package]]
+name = "rookie"
+version = "0.1.0"
+dependencies = [
+ "aes 0.7.5",
+ "block-modes 0.8.1",
+ "dirs",
+ "keyring",
+ "openssl",
+ "rusqlite",
+ "urlparse",
 ]
 
 [[package]]
