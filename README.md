@@ -19,7 +19,7 @@ Now you can either install the program in your system (it will be located in /us
 ### Install in your system
 
 ```console
-$ ./build.sh
+$ ./install.sh
 rookie <url> <browser_name>
 
 N.B: if you exec rookie without parameters example code will run. You can find example code in "main.rs" file of this project.
