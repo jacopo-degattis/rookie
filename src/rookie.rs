@@ -143,7 +143,7 @@ impl Rookie {
         let mut entries: Vec<String> = Vec::new();
 
         for i in 2..vec.len() + 1 {
-            let domain = vec[vec.len() - i .. 3].join(".");
+            let domain = vec[vec.len() - i .. vec.len()].join(".");
             let formatted = format!(".{}", domain.clone());
             entries.extend([domain, formatted]);
         }
