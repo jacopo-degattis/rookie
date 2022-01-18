@@ -55,10 +55,10 @@ impl Rookie {
         }
     }
 
-    fn _get_safe_storage_keyring(&self, browser: &str) -> Result<String, keyring::Error> {
+    fn _get_safe_storage_keyring(&self) -> Result<String, keyring::Error> {
 
-        let keyring_entry = format!("{} Safe Storage", &browser);
-        let entry = keyring::Entry::new(&keyring_entry, &browser);
+        let keyring_entry = format!("{} Safe Storage", "Chrome");
+        let entry = keyring::Entry::new(&keyring_entry, "Chrome");
         
         let password: String = match entry.get_password() {
             Ok(val) => val,
@@ -68,7 +68,7 @@ impl Rookie {
         Ok(password)
     }
 
-    fn _get_os_config(&self, browser: &str) -> Result<HashMap<&str, String>, Error> {
+    fn _get_os_config(&self) -> Result<HashMap<&str, String>, Error> {
         /*
             Get settings to fetch chrome cookies based upon
             the currently using OS.
@@ -82,26 +82,28 @@ impl Rookie {
 
         let mut config: HashMap<&str, String> = HashMap::new();
 
-        let browser_folding = HashMap::from([
-            ("Chrome", "Google/Chrome"),
-            ("Chromium", "Chromium")
-        ]);
+        // let browser_folding = HashMap::from([
+        //     ("Chrome", "Google/Chrome"),
+        //     ("Chromium", "Chromium")
+        // ]);
 
-        if !vec!["Chrome", "Chromium"].contains(&browser) {
-            return Err(
-                Error::new(
-                    ErrorKind::InvalidInput,
-                    "Browser must be either 'Chrome' or 'Chromium'"
-                )
-            );
-        }
+        // if !vec!["Chrome", "Chromium"].contains(&browser) {
+        //     return Err(
+        //         Error::new(
+        //             ErrorKind::InvalidInput,
+        //             "Browser must be either 'Chrome' or 'Chromium'"
+        //         )
+        //     );
+        // }
 
         let cookie_path = format!(
+            // "~/Library/Application Support/{}/Default/Cookies",
             "~/Library/Application Support/{}/Default/Cookies",
-            browser_folding[browser]
+            "Google/Chrome"
+            // browser_folding[browser]
         );
 
-        let password = self._get_safe_storage_keyring(browser).unwrap();
+        let password = self._get_safe_storage_keyring().unwrap();
         
         config.extend([
             ("psw", password),
@@ -236,13 +238,12 @@ impl Rookie {
     pub fn chrome_cookies(
         self,
         url: &str,
-        browser: &str
     ) -> Result<HashMap<String, String>, std::io::Error> {
         let mut config: HashMap<&str, String>;
 
         // TODO: add linux and windows support too
         if cfg!(target_os="macos") {
-            config = self._get_os_config(browser).unwrap();
+            config = self._get_os_config().unwrap();
         } else {
             return Err(
                 Error::new(
